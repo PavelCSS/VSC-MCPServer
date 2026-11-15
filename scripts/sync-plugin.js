@@ -14,7 +14,7 @@ if (!fs.existsSync(pluginDir)) {
 fs.mkdirSync(path.join(pluginDir, 'dist'), { recursive: true });
 fs.mkdirSync(path.join(pluginDir, 'extension'), { recursive: true });
 
-fs.copyFileSync(path.join(root, 'dist', 'proxy.js'), path.join(pluginDir, 'dist', 'proxy.js'));
+fs.copyFileSync(path.join(root, 'dist', 'proxy.js'), path.join(pluginDir, 'dist', 'proxy.cjs'));
 
 const vsixSrc = path.join(root, 'releases', `${pkg.name}-${pkg.version}.vsix`);
 const vsixDst = path.join(pluginDir, 'extension', 'vsc-mcpserver.vsix');

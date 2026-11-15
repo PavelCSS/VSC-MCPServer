@@ -22,5 +22,5 @@ description: Check https://github.com/CodingWithCalvin/VSC-MCPServer main branch
    - Adopt all new upstream tools, bugfixes, and dependencies.
    - Run `git add` on resolved files.
 8. Run `npm install && npm run build && npm run lint && npm test`. Fix any failures.
-9. Run `npm run sync:plugin` to bump the patch version, install the updated VSIX into VS Code, and copy `dist/proxy.js` and `vsc-mcpserver.vsix` into `../my-claude-marketplace/plugins/vsc-mcp/`.
+9. Run `npm run sync:plugin` to bump the patch version, install the updated VSIX into VS Code, and copy `dist/proxy.js` (as `dist/proxy.cjs`) and `vsc-mcpserver.vsix` into `../my-claude-marketplace/plugins/vsc-mcp/`.
 10. Report the merged upstream commits, resolved conflicts, test results, and the new extension version. Do not run `git commit` or `git push` unless the user asks.
