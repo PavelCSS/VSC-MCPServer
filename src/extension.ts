@@ -3,10 +3,16 @@ import { MCPServer } from './server';
 import { getConfiguration, onConfigurationChanged, MCPServerConfig } from './config/settings';
 import { MCPUriHandler } from './handlers/uriHandler';
 import { getAllTools } from './tools';
+import { WindowRegistry } from './registry/windowRegistry';
+import {
+    buildMcpProxyEntry,
+    ensureAntigravityMcpConfig,
+} from './registry/mcpClientRegister';
 
 let mcpServer: MCPServer | undefined;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let outputChannel: vscode.OutputChannel | undefined;
+const windowRegistry = new WindowRegistry();
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
     outputChannel = vscode.window.createOutputChannel('MCP Server');
@@ -25,7 +31,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         vscode.commands.registerCommand('codingwithcalvin.mcp.stop', stopServer),
         vscode.commands.registerCommand('codingwithcalvin.mcp.restart', restartServer),
         vscode.commands.registerCommand('codingwithcalvin.mcp.toggle', toggleServer),
-        vscode.commands.registerCommand('codingwithcalvin.mcp.showTools', showAvailableTools)
+        vscode.commands.registerCommand('codingwithcalvin.mcp.showTools', showAvailableTools),
+        vscode.commands.registerCommand('codingwithcalvin.mcp.copyConfig', () => {
+            const config = {
+                mcpServers: {
+                    vscode: buildMcpProxyEntry(context.asAbsolutePath('dist/proxy.js')),
+                },
+            };
+            void vscode.env.clipboard.writeText(JSON.stringify(config, null, 2)).then(() => {
+                void vscode.window.showInformationMessage('MCP proxy config copied to clipboard.');
+            });
+        })
     );
 
     // Register URI handler
@@ -60,15 +76,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
 
     // Clean up on deactivate
-    context.subscriptions.push({
-        dispose: async () => {
-            await stopServer();
-        },
-    });
+    context.subscriptions.push(
+        vscode.window.onDidChangeWindowState((state) => windowRegistry.updateFocus(state.focused)),
+        vscode.workspace.onDidChangeWorkspaceFolders(() => windowRegistry.updateWorkspace()),
+        {
+            dispose: async () => {
+                windowRegistry.unregister();
+                await stopServer();
+            },
+        }
+    );
 
     // Auto-start if configured
     if (config.autoStart) {
         await startServer();
+        ensureAntigravityMcpConfig(context.asAbsolutePath('dist/proxy.js'));
     } else {
         updateStatusBar(false);
     }
@@ -90,6 +112,7 @@ async function startServer(): Promise<void> {
         const config = getConfiguration();
         mcpServer = new MCPServer(config);
         const port = await mcpServer.start();
+        windowRegistry.register(port);
 
         log(`MCP server started on port ${port}`);
         vscode.window.showInformationMessage(`MCP server started on port ${port}`);
@@ -108,6 +131,7 @@ async function stopServer(): Promise<void> {
     }
 
     try {
+        windowRegistry.unregister();
         await mcpServer.stop();
         mcpServer = undefined;
 

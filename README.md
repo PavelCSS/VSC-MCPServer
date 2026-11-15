@@ -24,10 +24,10 @@ A Visual Studio Code extension that exposes an MCP (Model Context Protocol) serv
 ## ✨ Features
 
 - 🧠 **Full Language Intelligence** - Access VS Code's language server features via MCP tools
-- 📁 **Workspace Aware** - Works on individual files or full project contexts
+- 🪟 **Multi-Window & Workspace Routing** - Each VS Code window auto-assigns a free port on `EADDRINUSE` and registers in `~/.vsc-mcp/windows/<pid>.json`; the `dist/proxy.js` router forwards requests to the matching window (supports single folders and `.code-workspace`)
 - 🔗 **URI Protocol Handler** - Launch VS Code via `vscode://codingwithcalvin.mcp/...`
-- ⚡ **Auto-start** - MCP server starts automatically when VS Code launches
-- 🔒 **Secure by Default** - Binds only to localhost, no external access
+- ⚡ **Auto-start & Auto-register** - Starts automatically on VS Code launch, pairs with the `vsc-mcp` Claude plugin, and auto-configures Antigravity (`~/.gemini/antigravity/mcp_config.json`)
+- 🔒 **Secure by Default** - Binds only to `127.0.0.1` with Host header validation
 
 ## 🛠️ Available Tools
 
@@ -55,39 +55,41 @@ A Visual Studio Code extension that exposes an MCP (Model Context Protocol) serv
 
 ## 📦 Installation
 
-### VS Code Marketplace
-
-1. Open VS Code
-2. Go to **Extensions** (Ctrl+Shift+X)
-3. Search for "VSC as MCP"
-4. Click **Install** 🎉
-
-### Manual Installation
-
-Download the latest `.vsix` from the [Releases](https://github.com/CodingWithCalvin/VSC-MCPServer/releases) page:
+### Local Build & Plugin Sync
 
 ```bash
-code --install-extension CodingWithCalvin.VSC-MCPServer.vsix
+npm install
+npm run sync:plugin
+```
+
+`npm run sync:plugin` bumps the patch version (`2099.0.x`), builds and installs the `.vsix` into VS Code, and syncs `dist/proxy.js` + `extension/vsc-mcpserver.vsix` into the `vsc-mcp` Claude plugin (`../my-claude-marketplace/plugins/vsc-mcp`).
+
+For local VS Code installation only:
+
+```bash
+npm run install:local
 ```
 
 ## 🚀 Usage
 
-The MCP server starts automatically when VS Code launches! Just configure your AI tool to connect:
+### 🤖 Multi-Window MCP Proxy (Recommended)
 
-### 🤖 MCP Configuration
-
-Add to your MCP client configuration:
+- **Claude Code:** Install the `vsc-mcp@my-claude` plugin — it configures `dist/proxy.js` via `.mcp.json`, auto-installs/updates the VS Code extension on `SessionStart`, and nudges Claude to prefer VS Code semantic tools.
+- **Antigravity:** Automatically registered in `~/.gemini/antigravity/mcp_config.json` as `"vscode"` on extension startup.
+- **Manual `stdio` config** (or use **MCP Server: Copy Proxy Config** from Command Palette):
 
 ```json
 {
   "mcpServers": {
     "vscode": {
-      "url": "http://localhost:4000/mcp",
-      "description": "VS Code semantic code navigation"
+      "command": "node",
+      "args": ["/path/to/dist/proxy.js"]
     }
   }
 }
 ```
+
+You can also run the proxy in HTTP mode (`node dist/proxy.js --http --port 4000`) or target a single window directly at `http://127.0.0.1:<port>/mcp`.
 
 ### 🔗 URI Protocol
 
@@ -115,6 +117,7 @@ Access these from the Command Palette (Ctrl+Shift+P):
 - ⏹️ **MCP Server: Stop** - Stop the MCP server
 - 🔄 **MCP Server: Restart** - Restart the MCP server
 - 📋 **MCP Server: Show Available Tools** - View all available MCP tools
+- 📎 **MCP Server: Copy Proxy Config** - Copy the `stdio` proxy JSON config to clipboard
 
 ## 🔒 Security
 

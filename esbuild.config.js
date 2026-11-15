@@ -3,9 +3,9 @@ const esbuild = require('esbuild');
 const isWatch = process.argv.includes('--watch');
 
 const buildOptions = {
-    entryPoints: ['src/extension.ts'],
+    entryPoints: ['src/extension.ts', 'src/proxy.ts'],
     bundle: true,
-    outfile: 'dist/extension.js',
+    outdir: 'dist',
     external: ['vscode'],
     format: 'cjs',
     platform: 'node',

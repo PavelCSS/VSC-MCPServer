@@ -2,7 +2,7 @@
   "name": "VSC-MCPServer",
   "displayName": "VSC as MCP",
   "description": "Exposes VSCode's semantic code understanding capabilities via MCP",
-  "version": "0.1.0",
+  "version": "2099.0.1",
   "publisher": "CodingWithCalvin",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "resources/icon.png",
@@ -63,6 +63,10 @@
       {
         "command": "codingwithcalvin.mcp.showTools",
         "title": "MCP Server: Show Available Tools"
+      },
+      {
+        "command": "codingwithcalvin.mcp.copyConfig",
+        "title": "MCP Server: Copy Proxy Config"
       }
     ],
     "configuration": {
@@ -87,16 +91,19 @@
     }
   },
   "scripts": {
+    "install:local": "npm run package && \"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code\" --install-extension releases/$npm_package_name-$npm_package_version.vsix --force",
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.config.js",
     "watch": "node esbuild.config.js --watch",
     "lint": "eslint src --ext ts",
-    "prepare": "husky",	
+    "prepare": "husky",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:integration": "npm run build && node ./out/test/runIntegrationTests.js"
+    "test:integration": "npm run build && node ./out/test/runIntegrationTests.js",
+    "package": "npm run build && npm run lint && mkdir -p releases && npx --yes @vscode/vsce package --no-yarn --skip-license --out releases/",
+    "sync:plugin": "npm version patch --no-git-tag-version && npm run install:local && node scripts/sync-plugin.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -104,7 +111,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
-	"@commitlint/cli": "^19.0.0",
+    "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",
@@ -115,7 +122,7 @@
     "@vscode/test-electron": "^2.3.8",
     "esbuild": "^0.19.0",
     "eslint": "^8.0.0",
-	  "husky": "^9.0.0",
+    "husky": "^9.0.0",
     "typescript": "^5.3.0",
     "vitest": "^1.1.0",
     "@vitest/coverage-v8": "^1.1.0"

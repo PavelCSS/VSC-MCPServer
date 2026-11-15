@@ -219,30 +219,32 @@ export class MCPServer {
 
         this.setupRoutes();
 
-        return new Promise((resolve, reject) => {
-            this.httpServer = this.app.listen(
-                this.config.port,
-                this.config.bindAddress,
-                () => {
-                    const address = this.httpServer?.address();
-                    if (address && typeof address === 'object') {
-                        this.actualPort = address.port;
-                    } else {
-                        this.actualPort = this.config.port;
-                    }
+        const listenPort = (port: number): Promise<number> =>
+            new Promise((resolve, reject) => {
+                const srv = this.app.listen(port, this.config.bindAddress, () => {
+                    this.httpServer = srv;
+                    const address = srv.address();
+                    this.actualPort =
+                        address && typeof address === 'object' ? address.port : port;
                     this.isRunning = true;
                     console.log(
                         `MCP Server listening on http://${this.config.bindAddress}:${this.actualPort}/mcp`
                     );
                     resolve(this.actualPort);
-                }
-            );
+                });
 
-            this.httpServer.on('error', (error) => {
-                this.isRunning = false;
-                reject(error);
+                srv.once('error', (error: NodeJS.ErrnoException) => {
+                    if (error.code === 'EADDRINUSE' && port !== 0) {
+                        srv.close();
+                        listenPort(0).then(resolve, reject);
+                        return;
+                    }
+                    this.isRunning = false;
+                    reject(error);
+                });
             });
-        });
+
+        return listenPort(this.config.port);
     }
 
     async stop(): Promise<void> {
@@ -251,6 +253,7 @@ export class MCPServer {
         }
 
         return new Promise((resolve) => {
+            this.httpServer?.closeAllConnections?.();
             this.httpServer?.close(() => {
                 this.isRunning = false;
                 this.actualPort = 0;
