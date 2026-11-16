@@ -14,6 +14,12 @@ export interface ReferenceLocation {
     range: Range;
 }
 
+function overlaps(a: vscode.Range, b: vscode.Range): boolean {
+    const before = (p: vscode.Position, q: vscode.Position) =>
+        p.line < q.line || (p.line === q.line && p.character < q.character);
+    return !before(a.end, b.start) && !before(b.end, a.start);
+}
+
 export async function findReferences(
     params: z.infer<typeof findReferencesSchema>
 ): Promise<{ references: ReferenceLocation[]; totalCount: number }> {
@@ -40,11 +46,32 @@ export async function findReferences(
         return { references: [], totalCount: 0 };
     }
 
+    let result = locations;
+    if (params.includeDeclaration === false) {
+        const definitions = await vscode.commands.executeCommand<
+            (vscode.Location | vscode.LocationLink)[]
+        >('vscode.executeDefinitionProvider', uri, position);
+        const defs = (definitions ?? []).map((d) =>
+            'targetUri' in d
+                ? { uri: d.targetUri, range: d.targetSelectionRange ?? d.targetRange }
+                : { uri: d.uri, range: d.range }
+        );
+        result = locations.filter(
+            (loc) =>
+                !defs.some(
+                    (d) =>
+                        d.range !== undefined &&
+                        d.uri.toString() === loc.uri.toString() &&
+                        overlaps(loc.range, d.range)
+                )
+        );
+    }
+
     return {
-        references: locations.map((loc) => ({
+        references: result.map((loc) => ({
             uri: loc.uri.toString(),
             range: rangeToJSON(loc.range),
         })),
-        totalCount: locations.length,
+        totalCount: result.length,
     };
 }

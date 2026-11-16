@@ -13,6 +13,7 @@ import {
     findRipgrep,
     buildRgArgs,
 } from './workspaceTextSearch';
+import { truncatePreview, parseRgLine } from './workspaceTextSearch';
 import { mockVscode, resetMocks, MockUri } from '../test/helpers/mockVscode';
 
 describe('Workspace Text Search Tool', () => {
@@ -141,6 +142,55 @@ describe('Workspace Text Search Tool', () => {
         it('should return empty results without workspace folders', async () => {
             mockVscode.workspace.workspaceFolders = [];
             expect(await searchWorkspaceText({ query: 'x' })).toEqual({ results: [] });
+        });
+    });
+
+    describe('preview truncation', () => {
+        const long = 'a'.repeat(500) + 'NEEDLE' + 'b'.repeat(500);
+
+        it('should centre the match and mark both cut sides', () => {
+            const out = truncatePreview(long, 500, 506);
+            expect(out.startsWith('…')).toBe(true);
+            expect(out.endsWith('…')).toBe(true);
+            expect(out).toContain('NEEDLE');
+            expect(out.length).toBe(202);
+        });
+
+        it('should mark only the cut side near the line start', () => {
+            const out = truncatePreview('NEEDLE' + 'b'.repeat(500), 0, 6);
+            expect(out.startsWith('NEEDLE')).toBe(true);
+            expect(out.endsWith('…')).toBe(true);
+            expect(out.length).toBe(201);
+        });
+
+        it('should keep short lines unchanged', () => {
+            expect(truncatePreview('short', 0, 2)).toBe('short');
+        });
+
+        it('should truncate in the fallback path', async () => {
+            mockVscode.workspace.findFiles.mockResolvedValue([MockUri.file('/test/workspace/a.min.js')]);
+            mockVscode.workspace.fs.readFile.mockResolvedValue(Buffer.from(long));
+            const result = await searchWorkspaceText({ query: 'NEEDLE' });
+            const m = result.results[0].matches[0];
+            expect(m.preview.length).toBe(202);
+            expect(m.preview).toContain('NEEDLE');
+            expect(m.range.startCharacter).toBe(500);
+        });
+
+        it('should truncate in the rg path', () => {
+            const line = JSON.stringify({
+                type: 'match',
+                data: {
+                    path: { text: 'a.js' },
+                    lines: { text: long + '\n' },
+                    line_number: 1,
+                    submatches: [{ start: 500, end: 506 }],
+                },
+            });
+            const [m] = parseRgLine(line, '/w');
+            expect(m.preview.length).toBe(202);
+            expect(m.preview).toContain('NEEDLE');
+            expect(m.startCharacter).toBe(500);
         });
     });
 });

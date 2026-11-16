@@ -72,6 +72,12 @@ describe('Organize Imports Tool', () => {
             expect(result.success).toBe(true);
             expect(result.message).toContain('Successfully organized');
             expect(mockVscode.workspace.applyEdit).toHaveBeenCalled();
+            expect(mockVscode.commands.executeCommand).toHaveBeenCalledWith(
+                'vscode.executeCodeActionProvider',
+                expect.anything(),
+                expect.anything(),
+                'source.organizeImports'
+            );
         });
 
         it('should preview changes in dry-run mode without applying', async () => {

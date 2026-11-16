@@ -77,5 +77,41 @@ describe('Find References Tool', () => {
             expect(result.references).toEqual([]);
             expect(result.totalCount).toBe(0);
         });
+
+        it('should drop the declaration when includeDeclaration is false', async () => {
+            const uri = MockUri.file('/test/file1.ts');
+            const decl = new MockLocation(uri, new MockRange(new MockPosition(1, 4), new MockPosition(1, 10)));
+            const usage = new MockLocation(uri, new MockRange(new MockPosition(8, 2), new MockPosition(8, 8)));
+            mockVscode.commands.executeCommand.mockImplementation(async (cmd: string) =>
+                cmd === 'vscode.executeReferenceProvider'
+                    ? [decl, usage]
+                    : [new MockLocation(uri, new MockRange(new MockPosition(1, 4), new MockPosition(1, 10)))]
+            );
+
+            const result = await findReferences({
+                uri: '/test/file1.ts',
+                line: 8,
+                character: 3,
+                includeDeclaration: false,
+            });
+
+            expect(result.totalCount).toBe(1);
+            expect(result.references[0].range.startLine).toBe(8);
+        });
+
+        it('should keep the declaration when includeDeclaration is true', async () => {
+            const uri = MockUri.file('/test/file1.ts');
+            const decl = new MockLocation(uri, new MockRange(new MockPosition(1, 4), new MockPosition(1, 10)));
+            mockVscode.commands.executeCommand.mockResolvedValue([decl]);
+
+            const result = await findReferences({
+                uri: '/test/file1.ts',
+                line: 1,
+                character: 5,
+                includeDeclaration: true,
+            });
+
+            expect(result.totalCount).toBe(1);
+        });
     });
 });

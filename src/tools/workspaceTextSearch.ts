@@ -53,6 +53,19 @@ export interface RawMatch {
     preview: string;
 }
 
+export const MAX_PREVIEW_LENGTH = 200;
+
+export function truncatePreview(text: string, start: number, end: number): string {
+    if (text.length <= MAX_PREVIEW_LENGTH) {
+        return text;
+    }
+    const matchLength = end - start;
+    const lead = Math.max(0, Math.floor((MAX_PREVIEW_LENGTH - matchLength) / 2));
+    const from = Math.max(0, Math.min(start - lead, text.length - MAX_PREVIEW_LENGTH));
+    const to = Math.min(text.length, from + MAX_PREVIEW_LENGTH);
+    return (from > 0 ? '…' : '') + text.slice(from, to) + (to < text.length ? '…' : '');
+}
+
 export function findRipgrep(
     appRoot: string,
     exists: (p: string) => boolean = fs.existsSync
@@ -100,13 +113,17 @@ export function parseRgLine(line: string, cwd: string): RawMatch[] {
         lineBytes.subarray(0, byteOffset).toString('utf8').length;
     const filePath = path.isAbsolute(relPath) ? relPath : path.join(cwd, relPath);
     const lineNumber = (data.line_number as number) - 1;
-    return (data.submatches as { start: number; end: number }[]).map((m) => ({
-        filePath,
-        lineNumber,
-        startCharacter: toChar(m.start),
-        endCharacter: toChar(m.end),
-        preview,
-    }));
+    return (data.submatches as { start: number; end: number }[]).map((m) => {
+        const startCharacter = toChar(m.start);
+        const endCharacter = toChar(m.end);
+        return {
+            filePath,
+            lineNumber,
+            startCharacter,
+            endCharacter,
+            preview: truncatePreview(preview, startCharacter, endCharacter),
+        };
+    });
 }
 
 export function buildRgArgs(params: SearchParams): string[] {
@@ -193,7 +210,7 @@ export function matchLine(
             lineNumber,
             startCharacter: m.index,
             endCharacter: m.index + m[0].length,
-            preview: text,
+            preview: truncatePreview(text, m.index, m.index + m[0].length),
         });
     }
     return out;
