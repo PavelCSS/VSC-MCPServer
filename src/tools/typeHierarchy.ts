@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
 import { rangeToJSON, Range, symbolKindToString, ensureDocumentOpen } from '../adapters/vscodeAdapter';
 
 export const typeHierarchySchema = z.object({
@@ -37,10 +38,14 @@ export async function getTypeHierarchy(
     const position = new vscode.Position(params.line, params.character);
 
     // First, prepare the type hierarchy
-    const items = await vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
-        'vscode.prepareTypeHierarchy',
-        uri,
-        position
+    const items = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
+                'vscode.prepareTypeHierarchy',
+                uri,
+                position
+            ),
+        (r) => !r || r.length === 0
     );
 
     if (!items || items.length === 0) {

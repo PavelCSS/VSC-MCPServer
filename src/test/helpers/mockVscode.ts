@@ -337,6 +337,13 @@ export const mockVscode = {
         Parameter: 2,
     },
 
+    RelativePattern: class {
+        constructor(
+            public base: unknown,
+            public pattern: string
+        ) {}
+    },
+
     languages: {
         getDiagnostics: vi.fn(),
     },
@@ -348,6 +355,7 @@ export const mockVscode = {
         applyEdit: vi.fn().mockResolvedValue(true),
         workspaceFolders: [{ uri: MockUri.file('/test/workspace'), name: 'test-workspace' }],
         findFiles: vi.fn(),
+        getConfiguration: vi.fn(() => ({ get: () => undefined })),
         fs: { readFile: vi.fn() },
         asRelativePath: vi.fn((uri: MockUri) => uri.fsPath.replace('/test/workspace/', '')),
         textDocuments: [],

@@ -85,6 +85,14 @@ describe('Workspace Text Search Tool', () => {
     });
 
     describe('findRipgrep and buildRgArgs', () => {
+        it('should find the ripgrep-universal path of newer VS Code', () => {
+            const exe = process.platform === 'win32' ? 'rg.exe' : 'rg';
+            const expected = `/app/node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}/${exe}`;
+            expect(findRipgrep('/app', (p) => p.replace(/\\/g, '/') === expected.replace(/\\/g, '/'))).toBe(
+                require('path').join('/app', `node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}/${exe}`)
+            );
+        });
+
         it('should find the unpacked binary when the first path is missing', () => {
             const found = findRipgrep('/app', (p) => p.includes('node_modules.asar.unpacked'));
             expect(found).toContain('node_modules.asar.unpacked');

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
 import { rangeToJSON, symbolKindToString, Range, ensureDocumentOpen } from '../adapters/vscodeAdapter';
 
 export const callHierarchySchema = z.object({
@@ -60,10 +61,14 @@ export async function getCallHierarchy(params: z.infer<typeof callHierarchySchem
     const position = new vscode.Position(params.line, params.character);
 
     // Prepare the call hierarchy
-    const items = await vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
-        'vscode.prepareCallHierarchy',
-        uri,
-        position
+    const items = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
+                'vscode.prepareCallHierarchy',
+                uri,
+                position
+            ),
+        (r) => !r || r.length === 0
     );
 
     if (!items || items.length === 0) {

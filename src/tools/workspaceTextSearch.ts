@@ -3,6 +3,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { resolveScopeFolder } from './scope';
 import { Range } from '../adapters/vscodeAdapter';
 
 export const workspaceTextSearchSchema = z.object({
@@ -23,7 +24,11 @@ export const workspaceTextSearchSchema = z.object({
     maxResults: z
         .number()
         .optional()
-        .describe('Maximum number of results to return (default: 1000)'),
+        .describe('Maximum number of results to return (default: 200)'),
+    workspacePath: z
+        .string()
+        .optional()
+        .describe('Restrict the search to the workspace folder containing this path'),
 });
 
 export interface TextSearchResult {
@@ -36,9 +41,10 @@ export interface TextSearchResult {
     }[];
 }
 
-const DEFAULT_MAX_RESULTS = 1000;
+const DEFAULT_MAX_RESULTS = 200;
 const DEFAULT_EXCLUDES = ['**/node_modules/**', '**/.git/**'];
 const RG_RELATIVE_PATHS = [
+    `node_modules.asar.unpacked/@vscode/ripgrep-universal/bin/${process.platform}-${process.arch}/rg`,
     'node_modules/@vscode/ripgrep/bin/rg',
     'node_modules.asar.unpacked/@vscode/ripgrep/bin/rg',
 ];
@@ -216,14 +222,67 @@ export function matchLine(
     return out;
 }
 
-async function fallbackSearch(params: SearchParams, limit: number): Promise<RawMatch[]> {
+function configuredExcludes(): string[] {
+    const cfg = vscode.workspace.getConfiguration();
+    const out: string[] = [];
+    for (const key of ['search.exclude', 'files.exclude']) {
+        const map = cfg.get<Record<string, unknown>>(key) ?? {};
+        for (const [glob, on] of Object.entries(map)) {
+            if (on === true) {
+                out.push(glob);
+            }
+        }
+    }
+    return out;
+}
+
+async function findCandidateFiles(
+    folders: readonly vscode.WorkspaceFolder[],
+    include: string,
+    excludes: string[]
+): Promise<vscode.Uri[]> {
+    const findFiles2 = (
+        vscode.workspace as unknown as {
+            findFiles2?: (
+                filePattern: vscode.GlobPattern[],
+                options?: Record<string, unknown>
+            ) => Thenable<vscode.Uri[]>;
+        }
+    ).findFiles2;
+    if (typeof findFiles2 === 'function') {
+        try {
+            return await findFiles2.call(
+                vscode.workspace,
+                folders.map((f) => new vscode.RelativePattern(f, include)),
+                {
+                    exclude: excludes,
+                    useIgnoreFiles: { local: true, parent: true, global: true },
+                    useDefaultExcludes: true,
+                    useDefaultSearchExcludes: true,
+                }
+            );
+        } catch {
+            // fall through to findFiles
+        }
+    }
+    const all = [...excludes, ...configuredExcludes()];
+    const lists = await Promise.all(
+        folders.map((f) =>
+            vscode.workspace.findFiles(new vscode.RelativePattern(f, include), `{${all.join(',')}}`)
+        )
+    );
+    return lists.flat();
+}
+
+async function fallbackSearch(
+    params: SearchParams,
+    limit: number,
+    folders: readonly vscode.WorkspaceFolder[]
+): Promise<RawMatch[]> {
     const source = params.isRegex ? params.query : params.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const matcher = new RegExp(source, params.isCaseSensitive ? 'g' : 'gi');
     const excludes = [...DEFAULT_EXCLUDES, ...(params.excludePattern ? [params.excludePattern] : [])];
-    const files = await vscode.workspace.findFiles(
-        params.includePattern || '**/*',
-        `{${excludes.join(',')}}`
-    );
+    const files = await findCandidateFiles(folders, params.includePattern || '**/*', excludes);
     const matches: RawMatch[] = [];
     for (const file of files) {
         if (matches.length >= limit) {
@@ -253,28 +312,33 @@ async function fallbackSearch(params: SearchParams, limit: number): Promise<RawM
 
 export async function searchWorkspaceText(
     params: SearchParams
-): Promise<{ results: TextSearchResult[] }> {
+): Promise<{ results: TextSearchResult[]; truncated?: boolean }> {
     const workspaceFolders = vscode.workspace.workspaceFolders;
 
     if (!workspaceFolders || workspaceFolders.length === 0) {
         return { results: [] };
     }
 
-    const limit = params.maxResults || DEFAULT_MAX_RESULTS;
+    const maxResults = params.maxResults || DEFAULT_MAX_RESULTS;
+    const limit = maxResults + 1;
+    const scope = resolveScopeFolder(params.workspacePath);
+    const folders = scope ? [scope] : workspaceFolders;
     const rg = findRipgrep(vscode.env.appRoot);
     let raw: RawMatch[] = [];
 
     if (rg) {
-        for (const folder of workspaceFolders) {
+        for (const folder of folders) {
             if (raw.length >= limit) {
                 break;
             }
             raw.push(...(await runRipgrep(rg, folder.uri.fsPath, params, limit - raw.length)));
         }
     } else {
-        raw = await fallbackSearch(params, limit);
+        raw = await fallbackSearch(params, limit, folders);
     }
 
+    const truncated = raw.length > maxResults;
+    raw = raw.slice(0, maxResults);
     const results = new Map<string, TextSearchResult>();
     for (const m of raw) {
         const uri = vscode.Uri.file(m.filePath);
@@ -283,7 +347,7 @@ export async function searchWorkspaceText(
         if (!fileResult) {
             fileResult = {
                 uri: key,
-                relativePath: vscode.workspace.asRelativePath(uri, false),
+                relativePath: vscode.workspace.asRelativePath(uri, workspaceFolders.length > 1),
                 matches: [],
             };
             results.set(key, fileResult);
@@ -299,5 +363,5 @@ export async function searchWorkspaceText(
             lineNumber: m.lineNumber,
         });
     }
-    return { results: Array.from(results.values()) };
+    return { results: Array.from(results.values()), ...(truncated ? { truncated: true } : {}) };
 }

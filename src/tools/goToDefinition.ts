@@ -11,9 +11,7 @@ export const goToDefinitionSchema = z.object({
 export interface DefinitionLocation {
     uri: string;
     range: Range;
-    targetUri?: string;
-    targetRange?: Range;
-    targetSelectionRange?: Range;
+    selectionRange?: Range;
 }
 
 export async function goToDefinition(
@@ -47,9 +45,9 @@ export async function goToDefinition(
                 return {
                     uri: loc.targetUri.toString(),
                     range: rangeToJSON(loc.targetRange),
-                    targetUri: loc.targetUri.toString(),
-                    targetRange: rangeToJSON(loc.targetRange),
-                    targetSelectionRange: rangeToJSON(loc.targetSelectionRange),
+                    ...(loc.targetSelectionRange
+                        ? { selectionRange: rangeToJSON(loc.targetSelectionRange) }
+                        : {}),
                 };
             } else {
                 // Location

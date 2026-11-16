@@ -1,10 +1,17 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
+import { resolveScopeFolder } from './scope';
 import { rangeToJSON, symbolKindToString, Range } from '../adapters/vscodeAdapter';
 
 export const workspaceSymbolsSchema = z.object({
     query: z.string().describe('Symbol name search query'),
     maxResults: z.number().optional().default(50).describe('Maximum number of results'),
+    workspacePath: z
+        .string()
+        .optional()
+        .describe('Restrict results to the workspace folder containing this path'),
 });
 
 export interface WorkspaceSymbol {
@@ -18,10 +25,18 @@ export interface WorkspaceSymbol {
 export async function getWorkspaceSymbols(
     params: z.infer<typeof workspaceSymbolsSchema>
 ): Promise<{ symbols: WorkspaceSymbol[]; totalCount: number }> {
-    const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
-        'vscode.executeWorkspaceSymbolProvider',
-        params.query
+    const all = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<vscode.SymbolInformation[]>(
+                'vscode.executeWorkspaceSymbolProvider',
+                params.query
+            ),
+        (r) => !r || r.length === 0
     );
+    const scope = resolveScopeFolder(params.workspacePath);
+    const symbols = scope
+        ? all?.filter((s) => s.location.uri.fsPath.startsWith(scope.uri.fsPath + path.sep))
+        : all;
 
     if (!symbols || symbols.length === 0) {
         return { symbols: [], totalCount: 0 };

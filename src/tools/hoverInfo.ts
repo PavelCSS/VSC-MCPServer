@@ -58,7 +58,7 @@ export async function getHoverInfo(
     }
 
     return {
-        contents,
+        contents: contents.filter((c) => c.value.trim() !== ''),
         range: hovers[0].range ? rangeToJSON(hovers[0].range) : undefined,
     };
 }

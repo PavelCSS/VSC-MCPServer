@@ -53,7 +53,7 @@ const VSCODE_LIST_WINDOWS_TOOL: ToolDefinition = {
 };
 
 const jsonText = (data: unknown) => ({
-    content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data, null, 2) }],
+    content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data) }],
 });
 
 const errorText = (message: string) => ({
@@ -342,7 +342,6 @@ export const handleProxyRpc = async (
                 };
             }
             const forwardArgs = coerceArgs(rawArgs);
-            delete forwardArgs.workspacePath;
             const forwardReq: JsonRpcRequest = {
                 ...req,
                 params: { ...params, name, arguments: forwardArgs },

@@ -47,6 +47,35 @@ interface ToolEntry {
     schema: z.ZodObject<z.ZodRawShape>;
 }
 
+function typeToJson(type: z.ZodTypeAny): Record<string, unknown> {
+    let inner = type;
+    while (
+        inner instanceof z.ZodOptional ||
+        inner instanceof z.ZodDefault ||
+        inner instanceof z.ZodEffects
+    ) {
+        inner =
+            inner instanceof z.ZodOptional
+                ? inner.unwrap()
+                : inner instanceof z.ZodDefault
+                  ? inner._def.innerType
+                  : inner._def.schema;
+    }
+    if (inner instanceof z.ZodNumber) {
+        return { type: 'number' };
+    }
+    if (inner instanceof z.ZodBoolean) {
+        return { type: 'boolean' };
+    }
+    if (inner instanceof z.ZodArray) {
+        return { type: 'array', items: typeToJson(inner.element) };
+    }
+    if (inner instanceof z.ZodEnum) {
+        return { type: 'string', enum: inner.options };
+    }
+    return { type: 'string' };
+}
+
 export function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinition['inputSchema'] {
     const shape = schema.shape;
     const properties: Record<string, unknown> = {};
@@ -56,7 +85,6 @@ export function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinit
         const zodType = value as z.ZodTypeAny;
         const description = zodType.description;
 
-        // Unwrap optional/default layers (e.g. `.optional().default(x)` nests both)
         let innerType = zodType;
         let isOptional = false;
 
@@ -66,21 +94,7 @@ export function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinit
                 innerType instanceof z.ZodOptional ? innerType.unwrap() : innerType._def.innerType;
         }
 
-        // Convert zod type to JSON schema type
-        let jsonType: Record<string, unknown> = { type: 'string' };
-
-        if (innerType instanceof z.ZodString) {
-            jsonType = { type: 'string' };
-        } else if (innerType instanceof z.ZodNumber) {
-            jsonType = { type: 'number' };
-        } else if (innerType instanceof z.ZodBoolean) {
-            jsonType = { type: 'boolean' };
-        } else if (innerType instanceof z.ZodArray) {
-            jsonType = { type: 'array', items: { type: 'string' } };
-        } else if (innerType instanceof z.ZodEnum) {
-            jsonType = { type: 'string', enum: innerType.options };
-        }
-
+        const jsonType = typeToJson(innerType);
         if (description) {
             jsonType.description = description;
         }

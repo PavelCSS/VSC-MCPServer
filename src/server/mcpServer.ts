@@ -89,7 +89,7 @@ export class MCPServer {
                     content: [
                         {
                             type: 'text',
-                            text: JSON.stringify(result, null, 2),
+                            text: JSON.stringify(result),
                         },
                     ],
                 };
@@ -99,7 +99,7 @@ export class MCPServer {
                     content: [
                         {
                             type: 'text',
-                            text: JSON.stringify({ error: errorMessage }, null, 2),
+                            text: JSON.stringify({ error: errorMessage }),
                         },
                     ],
                     isError: true,
@@ -166,7 +166,7 @@ export class MCPServer {
                             content: [
                                 {
                                     type: 'text',
-                                    text: JSON.stringify(toolResult, null, 2),
+                                    text: JSON.stringify(toolResult),
                                 },
                             ],
                         };

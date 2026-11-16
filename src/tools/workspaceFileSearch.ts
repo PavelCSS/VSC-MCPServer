@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { resolveScopeFolder } from './scope';
 
 export const workspaceFileSearchSchema = z.object({
     pattern: z.string().describe('Glob pattern to search for files (e.g., "**/*.ts", "test/**")'),
@@ -11,6 +12,10 @@ export const workspaceFileSearchSchema = z.object({
         .string()
         .optional()
         .describe('Glob pattern for files to exclude (e.g., "**/node_modules/**")'),
+    workspacePath: z
+        .string()
+        .optional()
+        .describe('Restrict results to the workspace folder containing this path'),
 });
 
 export interface FileSearchResult {
@@ -33,15 +38,16 @@ export async function searchWorkspaceFiles(
 
     const excludePattern = params.exclude || undefined;
 
+    const scope = resolveScopeFolder(params.workspacePath);
     const files = await vscode.workspace.findFiles(
-        params.pattern,
+        scope ? new vscode.RelativePattern(scope, params.pattern) : params.pattern,
         excludePattern,
         options.maxResults
     );
 
     const result: FileSearchResult[] = files.map((uri) => {
         // Get relative path from workspace root
-        const relativePath = vscode.workspace.asRelativePath(uri, false);
+        const relativePath = vscode.workspace.asRelativePath(uri, workspaceFolders.length > 1);
 
         return {
             uri: uri.toString(),

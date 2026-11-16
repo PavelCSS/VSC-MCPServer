@@ -67,8 +67,8 @@ describe('Go To Definition Tool', () => {
             const result = await goToDefinition({ uri: '/test/file.ts', line: 5, character: 10 });
 
             expect(result.definitions).toHaveLength(1);
-            expect(result.definitions[0].targetUri).toBeTruthy();
-            expect(result.definitions[0].targetSelectionRange).toBeTruthy();
+            expect(result.definitions[0].uri).toBe('file:///test/definition.ts');
+            expect(result.definitions[0].selectionRange).toBeTruthy();
         });
 
         it('should handle file:// URIs', async () => {

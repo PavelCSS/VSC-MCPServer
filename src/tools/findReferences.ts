@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
 import { rangeToJSON, Range, ensureDocumentOpen } from '../adapters/vscodeAdapter';
 
 export const findReferencesSchema = z.object({
@@ -36,10 +37,14 @@ export async function findReferences(
 
     const position = new vscode.Position(params.line, params.character);
 
-    const locations = await vscode.commands.executeCommand<vscode.Location[]>(
-        'vscode.executeReferenceProvider',
-        uri,
-        position
+    const locations = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<vscode.Location[]>(
+                'vscode.executeReferenceProvider',
+                uri,
+                position
+            ),
+        (r) => !r || r.length === 0
     );
 
     if (!locations || locations.length === 0) {

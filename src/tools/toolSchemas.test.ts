@@ -26,6 +26,18 @@ describe('zodToJsonSchema', () => {
         expect(out.required).toEqual(['req']);
     });
 
+    it('should expose enums inside arrays', () => {
+        const out = zodToJsonSchema(z.object({ levels: z.array(z.enum(['a', 'b'])).optional() }));
+        expect(out.properties).toEqual({
+            levels: { type: 'array', items: { type: 'string', enum: ['a', 'b'] } },
+        });
+        const diag = getAllTools().find((t) => t.name === 'diagnostics')!.inputSchema.properties as Record<
+            string,
+            { items?: { enum?: string[] } }
+        >;
+        expect(diag.severityFilter.items?.enum).toEqual(['Error', 'Warning', 'Information', 'Hint']);
+    });
+
     it('should advertise the real types of registered tools', () => {
         const props = (name: string) =>
             getAllTools().find((t) => t.name === name)!.inputSchema.properties as Record<

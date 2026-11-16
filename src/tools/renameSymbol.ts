@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
 import { rangeToJSON, ensureDocumentOpen } from '../adapters/vscodeAdapter';
 
 export const renameSymbolSchema = z.object({
@@ -42,11 +43,15 @@ export async function renameSymbol(
 
     const position = new vscode.Position(params.line, params.character);
 
-    const workspaceEdit = await vscode.commands.executeCommand<vscode.WorkspaceEdit>(
-        'vscode.executeDocumentRenameProvider',
-        uri,
-        position,
-        params.newName
+    const workspaceEdit = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<vscode.WorkspaceEdit>(
+                'vscode.executeDocumentRenameProvider',
+                uri,
+                position,
+                params.newName
+            ),
+        (r) => !r || r.entries().length === 0
     );
 
     if (!workspaceEdit) {
