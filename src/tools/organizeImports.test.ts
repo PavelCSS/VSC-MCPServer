@@ -76,7 +76,8 @@ describe('Organize Imports Tool', () => {
                 'vscode.executeCodeActionProvider',
                 expect.anything(),
                 expect.anything(),
-                'source.organizeImports'
+                'source.organizeImports',
+                10
             );
         });
 
@@ -116,8 +117,29 @@ describe('Organize Imports Tool', () => {
 
             const result = await organizeImports({ uri: '/test/file.ts' });
 
-            expect(result.success).toBe(false);
-            expect(result.message).toContain('not available');
+            expect(result.success).toBe(true);
+            expect(result.edits).toEqual([]);
+            expect(result.message).toBe('No import changes needed');
+        });
+
+        it('should report no changes when the action edit has no entries', async () => {
+            const mockAction = new MockCodeAction(
+                'Organize Imports',
+                mockVscode.CodeActionKind.SourceOrganizeImports,
+                new MockWorkspaceEdit()
+            );
+
+            mockVscode.workspace.openTextDocument.mockResolvedValue(
+                new MockTextDocument(MockUri.file('/test/file.ts'), 'typescript', 1, 'content')
+            );
+            mockVscode.commands.executeCommand.mockResolvedValue([mockAction]);
+
+            const result = await organizeImports({ uri: '/test/file.ts' });
+
+            expect(result.success).toBe(true);
+            expect(result.edits).toEqual([]);
+            expect(result.message).toBe('No import changes needed');
+            expect(mockVscode.workspace.applyEdit).not.toHaveBeenCalled();
         });
 
         it('should handle no organize imports action found', async () => {

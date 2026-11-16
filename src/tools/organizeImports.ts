@@ -20,6 +20,8 @@ export interface TextEdit {
     newText: string;
 }
 
+const ORGANIZE_IMPORTS_RESOLVE_COUNT = 10;
+
 export async function organizeImports(
     params: z.infer<typeof organizeImportsSchema>
 ): Promise<{ success: boolean; edits?: TextEdit[]; message?: string }> {
@@ -47,14 +49,13 @@ export async function organizeImports(
         'vscode.executeCodeActionProvider',
         uri,
         fullRange,
-        vscode.CodeActionKind.SourceOrganizeImports.value
+        vscode.CodeActionKind.SourceOrganizeImports.value,
+        // Resolves the lazy `edit` of the action (documented command argument)
+        ORGANIZE_IMPORTS_RESOLVE_COUNT
     );
 
     if (!codeActions || codeActions.length === 0) {
-        return {
-            success: false,
-            message: 'Organize imports not available for this file',
-        };
+        return { success: true, edits: [], message: 'No import changes needed' };
     }
 
     // Find the organize imports action
@@ -76,10 +77,7 @@ export async function organizeImports(
     const entries = workspaceEdit.entries();
 
     if (entries.length === 0) {
-        return {
-            success: false,
-            message: 'No import changes needed',
-        };
+        return { success: true, edits: [], message: 'No import changes needed' };
     }
 
     // Extract the edits for preview
