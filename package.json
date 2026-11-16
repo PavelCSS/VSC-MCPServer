@@ -2,7 +2,7 @@
   "name": "VSC-MCPServer",
   "displayName": "VSC as MCP",
   "description": "Exposes VSCode's semantic code understanding capabilities via MCP",
-  "version": "2099.0.2",
+  "version": "2099.0.3",
   "publisher": "CodingWithCalvin",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "resources/icon.png",
