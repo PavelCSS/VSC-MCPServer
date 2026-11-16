@@ -6,6 +6,12 @@ vi.mock('vscode', async () => {
     return mockVscode;
 });
 
+vi.mock('./openTracker', () => ({
+    noteOpened: vi.fn(),
+    takeFreshlyOpened: () => false,
+    resetOpenTracker: vi.fn(),
+}));
+
 import { getCallHierarchy, callHierarchySchema } from './callHierarchy';
 import {
     mockVscode,

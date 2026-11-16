@@ -29,7 +29,7 @@ export interface FileEdit {
 
 export async function renameSymbol(
     params: z.infer<typeof renameSymbolSchema>
-): Promise<{ success: boolean; changes?: FileEdit[]; message?: string }> {
+): Promise<{ success: boolean; changes?: FileEdit[]; message?: string; warning?: string }> {
     // Handle both file:// URIs and plain paths
     let uri: vscode.Uri;
     if (params.uri.startsWith('file://')) {
@@ -43,7 +43,7 @@ export async function renameSymbol(
 
     const position = new vscode.Position(params.line, params.character);
 
-    const workspaceEdit = await runWithWarmup(
+    const { result: workspaceEdit, warning } = await runWithWarmup(
         () =>
             vscode.commands.executeCommand<vscode.WorkspaceEdit>(
                 'vscode.executeDocumentRenameProvider',
@@ -51,13 +51,16 @@ export async function renameSymbol(
                 position,
                 params.newName
             ),
-        (r) => !r || r.entries().length === 0
+        (r) => !r || r.entries().length === 0,
+        { uri, position }
     );
+    const warn = warning ? { warning } : {};
 
     if (!workspaceEdit) {
         return {
             success: false,
             message: 'Rename not available for this symbol',
+            ...warn,
         };
     }
 
@@ -67,6 +70,7 @@ export async function renameSymbol(
         return {
             success: false,
             message: 'No rename changes generated',
+            ...warn,
         };
     }
 
@@ -96,6 +100,7 @@ export async function renameSymbol(
             success: true,
             changes: fileEdits,
             message: `Dry-run: Would rename symbol in ${fileEdits.length} file(s) with ${totalEdits} change(s)`,
+            ...warn,
         };
     }
 
@@ -107,11 +112,13 @@ export async function renameSymbol(
             success: true,
             changes: fileEdits,
             message: `Successfully renamed symbol in ${fileEdits.length} file(s) with ${totalEdits} change(s)`,
+            ...warn,
         };
     } else {
         return {
             success: false,
             message: 'Failed to apply rename changes',
+            ...warn,
         };
     }
 }

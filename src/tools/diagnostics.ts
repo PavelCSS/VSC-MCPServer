@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { z } from 'zod';
 import {
@@ -6,6 +7,7 @@ import {
     diagnosticSeverityToString,
     DiagnosticInfo,
 } from '../adapters/vscodeAdapter';
+import { resolveScopeFolder } from './scope';
 
 const SEVERITIES = ['Error', 'Warning', 'Information', 'Hint'] as const;
 const DIAGNOSTICS_WAIT_MS = 3000;
@@ -42,11 +44,25 @@ export const diagnosticsSchema = z.object({
         .string()
         .optional()
         .describe('File URI or path. If omitted, returns all workspace diagnostics'),
+    workspacePath: z
+        .string()
+        .optional()
+        .describe('Without uri, restrict diagnostics to the workspace folder containing this path'),
     severityFilter: z
         .array(z.preprocess(normalizeSeverity, z.enum(SEVERITIES)))
         .optional()
         .describe('Filter by severity levels'),
 });
+
+export function scopeDiagnosticEntries<T extends { fsPath: string }, D>(
+    entries: [T, D][],
+    folderFsPath: string | undefined
+): [T, D][] {
+    if (!folderFsPath) {
+        return entries;
+    }
+    return entries.filter(([u]) => u.fsPath === folderFsPath || u.fsPath.startsWith(folderFsPath + path.sep));
+}
 
 export interface DiagnosticsSummary {
     errors: number;
@@ -76,7 +92,10 @@ export async function getDiagnostics(params: z.infer<typeof diagnosticsSchema>):
         }
         diagnosticEntries = [[uri, vscode.languages.getDiagnostics(uri)]];
     } else {
-        diagnosticEntries = vscode.languages.getDiagnostics();
+        diagnosticEntries = scopeDiagnosticEntries(
+            vscode.languages.getDiagnostics(),
+            resolveScopeFolder(params.workspacePath)?.uri.fsPath
+        );
     }
 
     let allDiagnostics: DiagnosticInfo[] = diagnosticEntries.flatMap(([uri, diags]) =>

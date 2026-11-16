@@ -23,7 +23,7 @@ function overlaps(a: vscode.Range, b: vscode.Range): boolean {
 
 export async function findReferences(
     params: z.infer<typeof findReferencesSchema>
-): Promise<{ references: ReferenceLocation[]; totalCount: number }> {
+): Promise<{ references: ReferenceLocation[]; totalCount: number; warning?: string }> {
     // Handle both file:// URIs and plain paths
     let uri: vscode.Uri;
     if (params.uri.startsWith('file://')) {
@@ -37,18 +37,20 @@ export async function findReferences(
 
     const position = new vscode.Position(params.line, params.character);
 
-    const locations = await runWithWarmup(
+    const { result: locations, warning } = await runWithWarmup(
         () =>
             vscode.commands.executeCommand<vscode.Location[]>(
                 'vscode.executeReferenceProvider',
                 uri,
                 position
             ),
-        (r) => !r || r.length === 0
+        (r) => !r || r.length === 0,
+        { uri, position }
     );
+    const warn = warning ? { warning } : {};
 
     if (!locations || locations.length === 0) {
-        return { references: [], totalCount: 0 };
+        return { references: [], totalCount: 0, ...warn };
     }
 
     let result = locations;
@@ -78,5 +80,6 @@ export async function findReferences(
             range: rangeToJSON(loc.range),
         })),
         totalCount: result.length,
+        ...warn,
     };
 }

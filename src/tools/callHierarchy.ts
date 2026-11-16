@@ -46,6 +46,7 @@ export async function getCallHierarchy(params: z.infer<typeof callHierarchySchem
     item?: CallHierarchyItem;
     incomingCalls?: IncomingCall[];
     outgoingCalls?: OutgoingCall[];
+    warning?: string;
 }> {
     // Handle both file:// URIs and plain paths
     let uri: vscode.Uri;
@@ -61,18 +62,19 @@ export async function getCallHierarchy(params: z.infer<typeof callHierarchySchem
     const position = new vscode.Position(params.line, params.character);
 
     // Prepare the call hierarchy
-    const items = await runWithWarmup(
+    const { result: items, warning } = await runWithWarmup(
         () =>
             vscode.commands.executeCommand<vscode.CallHierarchyItem[]>(
                 'vscode.prepareCallHierarchy',
                 uri,
                 position
             ),
-        (r) => !r || r.length === 0
+        (r) => !r || r.length === 0,
+        { uri, position }
     );
 
     if (!items || items.length === 0) {
-        return { item: undefined };
+        return { item: undefined, ...(warning ? { warning } : {}) };
     }
 
     const item = items[0];
@@ -80,8 +82,10 @@ export async function getCallHierarchy(params: z.infer<typeof callHierarchySchem
         item: CallHierarchyItem;
         incomingCalls?: IncomingCall[];
         outgoingCalls?: OutgoingCall[];
+        warning?: string;
     } = {
         item: callHierarchyItemToJSON(item),
+        ...(warning ? { warning } : {}),
     };
 
     if (params.direction === 'incoming' || params.direction === 'both') {

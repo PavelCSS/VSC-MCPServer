@@ -4,7 +4,6 @@ import { spawn } from 'child_process';
 import * as vscode from 'vscode';
 import { z } from 'zod';
 import { resolveScopeFolder } from './scope';
-import { Range } from '../adapters/vscodeAdapter';
 
 export const workspaceTextSearchSchema = z.object({
     query: z.string().describe('Text or regex pattern to search for'),
@@ -34,11 +33,26 @@ export const workspaceTextSearchSchema = z.object({
 export interface TextSearchResult {
     uri: string;
     relativePath: string;
-    matches: {
-        range: Range;
-        preview: string;
-        lineNumber: number;
-    }[];
+    matches: LineMatch[];
+}
+
+export interface LineMatch {
+    line: number;
+    preview: string;
+    columns: [number, number][];
+}
+
+export function groupMatchesByLine(raw: Pick<RawMatch, 'lineNumber' | 'startCharacter' | 'endCharacter' | 'preview'>[]): LineMatch[] {
+    const byLine = new Map<number, LineMatch>();
+    for (const m of raw) {
+        let entry = byLine.get(m.lineNumber);
+        if (!entry) {
+            entry = { line: m.lineNumber, preview: m.preview, columns: [] };
+            byLine.set(m.lineNumber, entry);
+        }
+        entry.columns.push([m.startCharacter, m.endCharacter]);
+    }
+    return Array.from(byLine.values());
 }
 
 const DEFAULT_MAX_RESULTS = 200;
@@ -339,29 +353,18 @@ export async function searchWorkspaceText(
 
     const truncated = raw.length > maxResults;
     raw = raw.slice(0, maxResults);
-    const results = new Map<string, TextSearchResult>();
+    const byFile = new Map<string, { uri: vscode.Uri; raw: RawMatch[] }>();
     for (const m of raw) {
         const uri = vscode.Uri.file(m.filePath);
         const key = uri.toString();
-        let fileResult = results.get(key);
-        if (!fileResult) {
-            fileResult = {
-                uri: key,
-                relativePath: vscode.workspace.asRelativePath(uri, workspaceFolders.length > 1),
-                matches: [],
-            };
-            results.set(key, fileResult);
-        }
-        fileResult.matches.push({
-            range: {
-                startLine: m.lineNumber,
-                startCharacter: m.startCharacter,
-                endLine: m.lineNumber,
-                endCharacter: m.endCharacter,
-            },
-            preview: m.preview,
-            lineNumber: m.lineNumber,
-        });
+        const entry = byFile.get(key) ?? { uri, raw: [] };
+        entry.raw.push(m);
+        byFile.set(key, entry);
     }
-    return { results: Array.from(results.values()), ...(truncated ? { truncated: true } : {}) };
+    const results: TextSearchResult[] = Array.from(byFile, ([key, { uri, raw: fileRaw }]) => ({
+        uri: key,
+        relativePath: vscode.workspace.asRelativePath(uri, workspaceFolders.length > 1),
+        matches: groupMatchesByLine(fileRaw),
+    }));
+    return { results: results, ...(truncated ? { truncated: true } : {}) };
 }

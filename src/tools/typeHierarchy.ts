@@ -23,7 +23,7 @@ export interface TypeHierarchyItemInfo {
 
 export async function getTypeHierarchy(
     params: z.infer<typeof typeHierarchySchema>
-): Promise<{ items: TypeHierarchyItemInfo[] }> {
+): Promise<{ items: TypeHierarchyItemInfo[]; warning?: string }> {
     // Handle both file:// URIs and plain paths
     let uri: vscode.Uri;
     if (params.uri.startsWith('file://')) {
@@ -38,18 +38,19 @@ export async function getTypeHierarchy(
     const position = new vscode.Position(params.line, params.character);
 
     // First, prepare the type hierarchy
-    const items = await runWithWarmup(
+    const { result: items, warning } = await runWithWarmup(
         () =>
             vscode.commands.executeCommand<vscode.TypeHierarchyItem[]>(
                 'vscode.prepareTypeHierarchy',
                 uri,
                 position
             ),
-        (r) => !r || r.length === 0
+        (r) => !r || r.length === 0,
+        { uri, position }
     );
 
     if (!items || items.length === 0) {
-        return { items: [] };
+        return { items: [], ...(warning ? { warning } : {}) };
     }
 
     // Get supertypes or subtypes based on direction
@@ -77,5 +78,5 @@ export async function getTypeHierarchy(
         detail: item.detail,
     }));
 
-    return { items: result };
+    return { items: result, ...(warning ? { warning } : {}) };
 }

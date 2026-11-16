@@ -12,6 +12,7 @@ import {
     parseRgLine,
     findRipgrep,
     buildRgArgs,
+    groupMatchesByLine,
 } from './workspaceTextSearch';
 import { truncatePreview, parseRgLine } from './workspaceTextSearch';
 import { mockVscode, resetMocks, MockUri } from '../test/helpers/mockVscode';
@@ -84,6 +85,21 @@ describe('Workspace Text Search Tool', () => {
         });
     });
 
+    describe('groupMatchesByLine', () => {
+        it('should merge matches of one line and keep line order', () => {
+            const m = (lineNumber: number, s: number, e: number, preview: string) => ({
+                lineNumber,
+                startCharacter: s,
+                endCharacter: e,
+                preview,
+            });
+            expect(groupMatchesByLine([m(4, 0, 3, 'foo foo'), m(4, 4, 7, 'foo foo'), m(9, 1, 2, 'xfy')])).toEqual([
+                { line: 4, preview: 'foo foo', columns: [[0, 3], [4, 7]] },
+                { line: 9, preview: 'xfy', columns: [[1, 2]] },
+            ]);
+        });
+    });
+
     describe('findRipgrep and buildRgArgs', () => {
         it('should find the ripgrep-universal path of newer VS Code', () => {
             const exe = process.platform === 'win32' ? 'rg.exe' : 'rg';
@@ -124,14 +140,12 @@ describe('Workspace Text Search Tool', () => {
             expect(result.results[0].relativePath).toBe('a.ts');
             expect(result.results[0].matches).toEqual([
                 {
-                    range: { startLine: 1, startCharacter: 6, endLine: 1, endCharacter: 9 },
+                    line: 1,
                     preview: 'const Foo = foo + 1;',
-                    lineNumber: 1,
-                },
-                {
-                    range: { startLine: 1, startCharacter: 12, endLine: 1, endCharacter: 15 },
-                    preview: 'const Foo = foo + 1;',
-                    lineNumber: 1,
+                    columns: [
+                        [6, 9],
+                        [12, 15],
+                    ],
                 },
             ]);
         });
@@ -141,10 +155,10 @@ describe('Workspace Text Search Tool', () => {
             mockVscode.workspace.fs.readFile.mockResolvedValue(Buffer.from('Foo\nfoo\nfoo\n'));
 
             const cs = await searchWorkspaceText({ query: 'foo', isCaseSensitive: true });
-            expect(cs.results[0].matches.map((m) => m.lineNumber)).toEqual([1, 2]);
+            expect(cs.results[0].matches.map((m) => m.line)).toEqual([1, 2]);
 
             const re = await searchWorkspaceText({ query: 'f.o', isRegex: true, maxResults: 2 });
-            expect(re.results[0].matches).toHaveLength(2);
+            expect(re.results[0].matches.flatMap((m) => m.columns)).toHaveLength(2);
         });
 
         it('should return empty results without workspace folders', async () => {
@@ -182,7 +196,7 @@ describe('Workspace Text Search Tool', () => {
             const m = result.results[0].matches[0];
             expect(m.preview.length).toBe(202);
             expect(m.preview).toContain('NEEDLE');
-            expect(m.range.startCharacter).toBe(500);
+            expect(m.columns[0][0]).toBe(500);
         });
 
         it('should truncate in the rg path', () => {

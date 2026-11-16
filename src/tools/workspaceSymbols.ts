@@ -25,13 +25,14 @@ export interface WorkspaceSymbol {
 export async function getWorkspaceSymbols(
     params: z.infer<typeof workspaceSymbolsSchema>
 ): Promise<{ symbols: WorkspaceSymbol[]; totalCount: number }> {
-    const all = await runWithWarmup(
+    const { result: all } = await runWithWarmup(
         () =>
             vscode.commands.executeCommand<vscode.SymbolInformation[]>(
                 'vscode.executeWorkspaceSymbolProvider',
                 params.query
             ),
-        (r) => !r || r.length === 0
+        (r) => !r || r.length === 0,
+        { workspacePath: params.workspacePath }
     );
     const scope = resolveScopeFolder(params.workspacePath);
     const symbols = scope

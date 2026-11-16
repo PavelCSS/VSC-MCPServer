@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { z } from 'zod';
+import { runWithWarmup } from './warmup';
 import { rangeToJSON, Range, ensureDocumentOpen } from '../adapters/vscodeAdapter';
 
 export const goToDefinitionSchema = z.object({
@@ -16,7 +17,7 @@ export interface DefinitionLocation {
 
 export async function goToDefinition(
     params: z.infer<typeof goToDefinitionSchema>
-): Promise<{ definitions: DefinitionLocation[] }> {
+): Promise<{ definitions: DefinitionLocation[]; warning?: string }> {
     // Handle both file:// URIs and plain paths
     let uri: vscode.Uri;
     if (params.uri.startsWith('file://')) {
@@ -30,15 +31,23 @@ export async function goToDefinition(
 
     const position = new vscode.Position(params.line, params.character);
 
-    const locations = await vscode.commands.executeCommand<
-        (vscode.Location | vscode.LocationLink)[]
-    >('vscode.executeDefinitionProvider', uri, position);
+    const { result: locations, warning } = await runWithWarmup(
+        () =>
+            vscode.commands.executeCommand<(vscode.Location | vscode.LocationLink)[]>(
+                'vscode.executeDefinitionProvider',
+                uri,
+                position
+            ),
+        (r) => !r || r.length === 0,
+        { uri, position }
+    );
 
     if (!locations || locations.length === 0) {
-        return { definitions: [] };
+        return { definitions: [], ...(warning ? { warning } : {}) };
     }
 
     return {
+        ...(warning ? { warning } : {}),
         definitions: locations.map((loc) => {
             if ('targetUri' in loc) {
                 // LocationLink

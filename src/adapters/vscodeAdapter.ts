@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { noteOpened } from '../tools/openTracker';
 
 export interface Range {
     startLine: number;
@@ -110,11 +111,14 @@ export async function ensureDocumentOpen(uri: vscode.Uri): Promise<vscode.TextDo
             (doc) => doc.uri.toString() === uri.toString()
         );
         if (openDoc) {
+            noteOpened(uri.toString(), false);
             return openDoc;
         }
 
         // Open the document (doesn't show it in editor)
-        return await vscode.workspace.openTextDocument(uri);
+        const doc = await vscode.workspace.openTextDocument(uri);
+        noteOpened(uri.toString(), true);
+        return doc;
     } catch (error) {
         throw new Error(`Failed to open document: ${uri.toString()}`);
     }
