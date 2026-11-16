@@ -6,7 +6,7 @@ VS Code extension that exposes VS Code's semantic language intelligence over MCP
 
 - Keep code comments minimal (only non-obvious "why", not "what").
 - Run `npm run build`, `npm run lint`, and `npm run test` after edits to `src/`.
-- After changes to the extension or proxy, run `npm run sync:plugin` to bump the patch version (`2099.0.x`), package and install the `.vsix` locally into VS Code, and sync `dist/proxy.js` + `extension/vsc-mcpserver.vsix` + `extension/meta.json` to `../my-claude-marketplace/plugins/vsc-mcp/`.
+- After changes to the extension or proxy, run `npm run sync:plugin` to bump the patch version (`2099.0.x`), package and install the `.vsix` locally into VS Code, and sync `dist/proxy.js` + `extension/vsc-mcpserver.vsix` + `extension/meta.json` to `../my-claude/plugins/vsc-mcp/`.
 - Keep the version >= `2099.0.0` in `package.json` so VS Code Marketplace auto-updates do not overwrite this local fork.
 - Never edit `dist/` or `releases/` manually; they are generated.
 
@@ -35,4 +35,4 @@ npm run sync:plugin      # Bump patch version, install:local, and sync artifacts
 - **`src/registry/mcpClientRegister.ts`** — Registers/updates the `vscode` stdio proxy entry in Antigravity (`~/.gemini/antigravity/mcp_config.json`) without overwriting unrelated user entries.
 - **`src/proxy.ts`** — Standalone Node.js MCP proxy (`dist/proxy.js`, no `vscode` import). Supports `stdio` (default) and `--http --port 4000`. Routes `tools/list` and `tools/call` to the matching live VS Code window by longest prefix match on `workspacePath` / `filePath` / `file` / `path` / `folderPath` / MCP `roots` / `cwd` (falling back to most recently focused), and exposes `vscode_list_windows`.
 - **`src/tools/`** — Semantic LSP and workspace tool wrappers (`goToDefinition`, `findReferences`, `hoverInfo`, `diagnostics`, `documentSymbols`, `workspaceSymbols`, `callHierarchy`, `typeHierarchy`, `completions`, `signatureHelp`, `codeActions`, `applyCodeAction`, `renameSymbol`, `formatDocument`, `formatRange`, `organizeImports`, `workspaceFileSearch`, `workspaceTextSearch`, etc.).
-- **`scripts/sync-plugin.js`** — Copies `dist/proxy.js`, the packaged `.vsix`, and `meta.json` (version + sha256) into `../my-claude-marketplace/plugins/vsc-mcp/`.
+- **`scripts/sync-plugin.js`** — Copies `dist/proxy.js`, the packaged `.vsix`, and `meta.json` (version + sha256) into `../my-claude/plugins/vsc-mcp/`.

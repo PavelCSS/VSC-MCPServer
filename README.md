@@ -62,7 +62,7 @@ npm install
 npm run sync:plugin
 ```
 
-`npm run sync:plugin` bumps the patch version (`2099.0.x`), builds and installs the `.vsix` into VS Code, and syncs `dist/proxy.js` + `extension/vsc-mcpserver.vsix` into the `vsc-mcp` Claude plugin (`../my-claude-marketplace/plugins/vsc-mcp`).
+`npm run sync:plugin` bumps the patch version (`2099.0.x`), builds and installs the `.vsix` into VS Code, and syncs `dist/proxy.js` + `extension/vsc-mcpserver.vsix` into the `vsc-mcp` Claude plugin (`../my-claude/plugins/vsc-mcp`).
 
 For local VS Code installation only:
 

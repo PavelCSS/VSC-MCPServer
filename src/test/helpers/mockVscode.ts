@@ -348,10 +348,12 @@ export const mockVscode = {
         applyEdit: vi.fn().mockResolvedValue(true),
         workspaceFolders: [{ uri: MockUri.file('/test/workspace'), name: 'test-workspace' }],
         findFiles: vi.fn(),
-        findTextInFiles: vi.fn(),
+        fs: { readFile: vi.fn() },
         asRelativePath: vi.fn((uri: MockUri) => uri.fsPath.replace('/test/workspace/', '')),
         textDocuments: [],
     },
+
+    env: { appRoot: '/nonexistent/vscode/app' },
 
     commands: {
         executeCommand: vi.fn(),

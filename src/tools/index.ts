@@ -47,7 +47,7 @@ interface ToolEntry {
     schema: z.ZodObject<z.ZodRawShape>;
 }
 
-function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinition['inputSchema'] {
+export function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinition['inputSchema'] {
     const shape = schema.shape;
     const properties: Record<string, unknown> = {};
     const required: string[] = [];
@@ -56,13 +56,14 @@ function zodToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): ToolDefinition['in
         const zodType = value as z.ZodTypeAny;
         const description = zodType.description;
 
-        // Handle optional types
+        // Unwrap optional/default layers (e.g. `.optional().default(x)` nests both)
         let innerType = zodType;
         let isOptional = false;
 
-        if (zodType instanceof z.ZodOptional || zodType instanceof z.ZodDefault) {
+        while (innerType instanceof z.ZodOptional || innerType instanceof z.ZodDefault) {
             isOptional = true;
-            innerType = zodType instanceof z.ZodOptional ? zodType.unwrap() : zodType._def.innerType;
+            innerType =
+                innerType instanceof z.ZodOptional ? innerType.unwrap() : innerType._def.innerType;
         }
 
         // Convert zod type to JSON schema type

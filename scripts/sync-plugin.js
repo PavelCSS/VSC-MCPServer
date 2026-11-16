@@ -4,7 +4,9 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-const pluginDir = path.resolve(root, '..', 'my-claude-marketplace', 'plugins', 'vsc-mcp');
+const pluginDir = process.env.VSC_MCP_PLUGIN_DIR
+    ? path.resolve(process.env.VSC_MCP_PLUGIN_DIR)
+    : path.resolve(root, '..', 'my-claude', 'plugins', 'vsc-mcp');
 
 if (!fs.existsSync(pluginDir)) {
     console.error(`Plugin directory not found: ${pluginDir}`);

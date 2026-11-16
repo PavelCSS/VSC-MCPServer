@@ -201,11 +201,37 @@ const rpcError = (id: JsonRpcId, code: number, message: string): JsonRpcResponse
     error: { code, message },
 });
 
+const COERCE_TYPES: Record<string, 'number' | 'boolean'> = {
+    maxResults: 'number',
+    includeDeclaration: 'boolean',
+    newWindow: 'boolean',
+};
+
+export const coerceArgs = (args: Record<string, unknown>): Record<string, unknown> => {
+    const out = { ...args };
+    for (const [key, type] of Object.entries(COERCE_TYPES)) {
+        const val = out[key];
+        if (typeof val !== 'string') {
+            continue;
+        }
+        if (type === 'boolean') {
+            if (val === 'true') {
+                out[key] = true;
+            } else if (val === 'false') {
+                out[key] = false;
+            }
+        } else if (val.trim() !== '' && !Number.isNaN(Number(val))) {
+            out[key] = Number(val);
+        }
+    }
+    return out;
+};
+
 const pickTargetPath = (args: Record<string, unknown>, clientRoots: string[]): string => {
-    for (const key of ['workspacePath', 'filePath', 'file', 'path', 'folderPath']) {
+    for (const key of ['workspacePath', 'uri', 'filePath', 'file', 'path', 'folderPath']) {
         const val = args[key];
         if (typeof val === 'string' && val.trim()) {
-            return val;
+            return key === 'uri' ? (targetToPath(val) ?? val) : val;
         }
     }
     if (clientRoots.length) {
@@ -315,7 +341,7 @@ export const handleProxyRpc = async (
                     ),
                 };
             }
-            const forwardArgs = { ...rawArgs };
+            const forwardArgs = coerceArgs(rawArgs);
             delete forwardArgs.workspacePath;
             const forwardReq: JsonRpcRequest = {
                 ...req,

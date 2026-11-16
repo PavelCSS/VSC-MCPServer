@@ -6,8 +6,14 @@ vi.mock('vscode', async () => {
     return mockVscode;
 });
 
-import { searchWorkspaceText, workspaceTextSearchSchema } from './workspaceTextSearch';
-import { mockVscode, resetMocks, MockUri, MockRange, MockPosition } from '../test/helpers/mockVscode';
+import {
+    searchWorkspaceText,
+    workspaceTextSearchSchema,
+    parseRgLine,
+    findRipgrep,
+    buildRgArgs,
+} from './workspaceTextSearch';
+import { mockVscode, resetMocks, MockUri } from '../test/helpers/mockVscode';
 
 describe('Workspace Text Search Tool', () => {
     beforeEach(() => {
@@ -49,218 +55,92 @@ describe('Workspace Text Search Tool', () => {
         });
     });
 
-    describe('searchWorkspaceText', () => {
-        it('should find text across multiple files', async () => {
-            const mockResults = [
-                {
-                    uri: MockUri.file('/test/workspace/file1.ts'),
-                    ranges: [new MockRange(new MockPosition(5, 0), new MockPosition(5, 10))],
-                    preview: { text: 'function searchTerm() {', matches: [] },
+    describe('parseRgLine', () => {
+        it('should convert a match event with byte offsets to character ranges', () => {
+            const line = JSON.stringify({
+                type: 'match',
+                data: {
+                    path: { text: 'src/a.ts' },
+                    lines: { text: 'é foo bar\n' },
+                    line_number: 3,
+                    submatches: [{ match: { text: 'foo' }, start: 3, end: 6 }],
                 },
+            });
+            expect(parseRgLine(line, '/ws')).toEqual([
                 {
-                    uri: MockUri.file('/test/workspace/file2.ts'),
-                    ranges: [
-                        new MockRange(new MockPosition(10, 5), new MockPosition(10, 15)),
-                        new MockRange(new MockPosition(20, 8), new MockPosition(20, 18)),
-                    ],
-                    preview: { text: 'const searchTerm = 42;', matches: [] },
+                    filePath: '/ws/src/a.ts',
+                    lineNumber: 2,
+                    startCharacter: 2,
+                    endCharacter: 5,
+                    preview: 'é foo bar',
                 },
-            ];
-
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                for (const result of mockResults) {
-                    callback(result);
-                }
-            });
-
-            const result = await searchWorkspaceText({
-                query: 'searchTerm',
-            });
-
-            expect(result.results).toHaveLength(2);
-            expect(result.results[0].matches).toHaveLength(1);
-            expect(result.results[1].matches).toHaveLength(2);
+            ]);
         });
 
-        it('should handle regex search', async () => {
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                // No results for simplicity
-            });
+        it('should ignore non-match events and invalid lines', () => {
+            expect(parseRgLine(JSON.stringify({ type: 'begin', data: {} }), '/ws')).toEqual([]);
+            expect(parseRgLine('not json', '/ws')).toEqual([]);
+        });
+    });
 
-            await searchWorkspaceText({
-                query: 'function.*\\(\\)',
-                isRegex: true,
-            });
+    describe('findRipgrep and buildRgArgs', () => {
+        it('should find the unpacked binary when the first path is missing', () => {
+            const found = findRipgrep('/app', (p) => p.includes('node_modules.asar.unpacked'));
+            expect(found).toContain('node_modules.asar.unpacked');
+            expect(findRipgrep('/app', () => false)).toBeUndefined();
+        });
 
-            expect(mockVscode.workspace.findTextInFiles).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    pattern: expect.any(RegExp),
-                    isRegExp: true,
-                }),
-                expect.any(Object),
-                expect.any(Function)
+        it('should exclude node_modules and .git by default', () => {
+            const args = buildRgArgs({ query: 'x', excludePattern: '**/dist/**', includePattern: '*.ts' });
+            expect(args).toEqual(
+                expect.arrayContaining(['!**/node_modules/**', '!**/.git/**', '!**/dist/**', '*.ts', '--fixed-strings'])
             );
-        });
-
-        it('should handle case-sensitive search', async () => {
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                // No results
-            });
-
-            await searchWorkspaceText({
-                query: 'SearchTerm',
-                isCaseSensitive: true,
-            });
-
-            expect(mockVscode.workspace.findTextInFiles).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    isCaseSensitive: true,
-                }),
-                expect.any(Object),
-                expect.any(Function)
+            expect(buildRgArgs({ query: 'x', isRegex: true, isCaseSensitive: true })).toEqual(
+                expect.arrayContaining(['--case-sensitive'])
             );
+            expect(buildRgArgs({ query: 'x', isRegex: true })).not.toContain('--fixed-strings');
         });
+    });
 
-        it('should respect include pattern', async () => {
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                // No results
-            });
-
-            await searchWorkspaceText({
-                query: 'test',
-                includePattern: '**/*.test.ts',
-            });
-
-            expect(mockVscode.workspace.findTextInFiles).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.objectContaining({
-                    include: '**/*.test.ts',
-                }),
-                expect.any(Function)
+    describe('fallback search', () => {
+        it('should match line by line when rg is not found', async () => {
+            mockVscode.workspace.findFiles.mockResolvedValue([MockUri.file('/test/workspace/a.ts')]);
+            mockVscode.workspace.fs.readFile.mockResolvedValue(
+                Buffer.from('nothing\nconst Foo = foo + 1;\n')
             );
-        });
 
-        it('should respect exclude pattern', async () => {
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                // No results
-            });
-
-            await searchWorkspaceText({
-                query: 'test',
-                excludePattern: '**/node_modules/**',
-            });
-
-            expect(mockVscode.workspace.findTextInFiles).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.objectContaining({
-                    exclude: '**/node_modules/**',
-                }),
-                expect.any(Function)
-            );
-        });
-
-        it('should respect maxResults limit', async () => {
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                // No results
-            });
-
-            await searchWorkspaceText({
-                query: 'test',
-                maxResults: 50,
-            });
-
-            expect(mockVscode.workspace.findTextInFiles).toHaveBeenCalledWith(
-                expect.any(Object),
-                expect.objectContaining({
-                    maxResults: 50,
-                }),
-                expect.any(Function)
-            );
-        });
-
-        it('should return empty results when no workspace open', async () => {
-            mockVscode.workspace.workspaceFolders = undefined;
-
-            const result = await searchWorkspaceText({
-                query: 'test',
-            });
-
-            expect(result.results).toEqual([]);
-        });
-
-        it('should group matches by file', async () => {
-            const mockResults = [
-                {
-                    uri: MockUri.file('/test/workspace/file1.ts'),
-                    ranges: [new MockRange(new MockPosition(1, 0), new MockPosition(1, 4))],
-                    preview: { text: 'test line 1', matches: [] },
-                },
-                {
-                    uri: MockUri.file('/test/workspace/file1.ts'),
-                    ranges: [new MockRange(new MockPosition(5, 0), new MockPosition(5, 4))],
-                    preview: { text: 'test line 2', matches: [] },
-                },
-            ];
-
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                for (const result of mockResults) {
-                    callback(result);
-                }
-            });
-
-            const result = await searchWorkspaceText({
-                query: 'test',
-            });
+            const result = await searchWorkspaceText({ query: 'foo' });
 
             expect(result.results).toHaveLength(1);
-            expect(result.results[0].matches).toHaveLength(2);
+            expect(result.results[0].relativePath).toBe('a.ts');
+            expect(result.results[0].matches).toEqual([
+                {
+                    range: { startLine: 1, startCharacter: 6, endLine: 1, endCharacter: 9 },
+                    preview: 'const Foo = foo + 1;',
+                    lineNumber: 1,
+                },
+                {
+                    range: { startLine: 1, startCharacter: 12, endLine: 1, endCharacter: 15 },
+                    preview: 'const Foo = foo + 1;',
+                    lineNumber: 1,
+                },
+            ]);
         });
 
-        it('should include preview text for each match', async () => {
-            const mockResults = [
-                {
-                    uri: MockUri.file('/test/workspace/file1.ts'),
-                    ranges: [new MockRange(new MockPosition(10, 0), new MockPosition(10, 10))],
-                    preview: { text: 'function example() {', matches: [] },
-                },
-            ];
+        it('should honour case sensitivity, regex and maxResults', async () => {
+            mockVscode.workspace.findFiles.mockResolvedValue([MockUri.file('/test/workspace/a.ts')]);
+            mockVscode.workspace.fs.readFile.mockResolvedValue(Buffer.from('Foo\nfoo\nfoo\n'));
 
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                for (const result of mockResults) {
-                    callback(result);
-                }
-            });
+            const cs = await searchWorkspaceText({ query: 'foo', isCaseSensitive: true });
+            expect(cs.results[0].matches.map((m) => m.lineNumber)).toEqual([1, 2]);
 
-            const result = await searchWorkspaceText({
-                query: 'example',
-            });
-
-            expect(result.results[0].matches[0].preview).toBe('function example() {');
-            expect(result.results[0].matches[0].lineNumber).toBe(10);
+            const re = await searchWorkspaceText({ query: 'f.o', isRegex: true, maxResults: 2 });
+            expect(re.results[0].matches).toHaveLength(2);
         });
 
-        it('should provide relative paths', async () => {
-            const mockResults = [
-                {
-                    uri: MockUri.file('/test/workspace/src/utils/helper.ts'),
-                    ranges: [new MockRange(new MockPosition(0, 0), new MockPosition(0, 5))],
-                    preview: { text: 'match', matches: [] },
-                },
-            ];
-
-            mockVscode.workspace.findTextInFiles.mockImplementation(async (query, options, callback) => {
-                for (const result of mockResults) {
-                    callback(result);
-                }
-            });
-
-            mockVscode.workspace.asRelativePath.mockReturnValue('src/utils/helper.ts');
-
-            const result = await searchWorkspaceText({
-                query: 'match',
-            });
-
-            expect(result.results[0].relativePath).toBe('src/utils/helper.ts');
+        it('should return empty results without workspace folders', async () => {
+            mockVscode.workspace.workspaceFolders = [];
+            expect(await searchWorkspaceText({ query: 'x' })).toEqual({ results: [] });
         });
     });
 });
