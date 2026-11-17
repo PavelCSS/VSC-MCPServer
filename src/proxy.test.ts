@@ -69,3 +69,75 @@ describe('tools/call routing', () => {
         expect(received[0].body.params.arguments.maxResults).toBe(5);
     });
 });
+
+describe('tool allowlist', () => {
+    it('should list only allowlisted tools', async () => {
+        const srv = createServer((req, res) => {
+            req.resume();
+            req.on('end', () => {
+                const tools = ['hover_info', 'completions', 'format_document', 'diagnostics'].map((name) => ({
+                    name,
+                    description: name,
+                    inputSchema: { type: 'object', properties: {} },
+                }));
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ jsonrpc: '2.0', id: 'proxy-tools', result: { tools } }));
+            });
+        });
+        await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', () => resolve()));
+        const dir = mkdtempSync(join(tmpdir(), 'vscmcp-'));
+        writeFileSync(
+            join(dir, 'a.json'),
+            JSON.stringify({
+                pid: process.pid,
+                name: 'a',
+                folders: ['/proj/a'],
+                port: (srv.address() as any).port,
+                focusedAt: 1,
+            })
+        );
+        const res = await handleProxyRpc(
+            { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+            { windowsDir: dir, clientRoots: ['/proj/a'] }
+        );
+        srv.close();
+
+        const names = (res?.result as { tools: { name: string }[] }).tools.map((t) => t.name);
+        expect(names).toEqual(['vscode_list_windows', 'hover_info', 'diagnostics']);
+    });
+
+    it('should reject a disabled tool without forwarding', async () => {
+        let hits = 0;
+        const srv = createServer((req, res) => {
+            hits++;
+            res.end('{}');
+        });
+        await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', () => resolve()));
+        const dir = mkdtempSync(join(tmpdir(), 'vscmcp-'));
+        writeFileSync(
+            join(dir, 'a.json'),
+            JSON.stringify({
+                pid: process.pid,
+                name: 'a',
+                folders: ['/proj/a'],
+                port: (srv.address() as any).port,
+                focusedAt: 1,
+            })
+        );
+        const res = await handleProxyRpc(
+            { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'format_document', arguments: {} } },
+            { windowsDir: dir, clientRoots: ['/proj/a'] }
+        );
+        srv.close();
+
+        expect(res).toEqual({
+            jsonrpc: '2.0',
+            id: 2,
+            result: {
+                content: [{ type: 'text', text: 'Tool format_document is disabled in vsc-mcp proxy' }],
+                isError: true,
+            },
+        });
+        expect(hits).toBe(0);
+    });
+});

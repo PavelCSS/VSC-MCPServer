@@ -21,6 +21,7 @@ description: Check https://github.com/CodingWithCalvin/VSC-MCPServer main branch
    - Keep `src/proxy.ts`, `src/registry/windowRegistry.ts`, `src/registry/mcpClientRegister.ts`, `scripts/sync-plugin.js`, `.claude/skills/sync-upstream/SKILL.md`, `CLAUDE.md`, and `README.md` fork sections.
    - Adopt all new upstream tools, bugfixes, and dependencies.
    - Run `git add` on resolved files.
-8. Run `npm install && npm run build && npm run lint && npm test`. Fix any failures.
-9. Run `npm run sync:plugin` to bump the patch version, install the updated VSIX into VS Code, and copy `dist/proxy.js` (as `dist/proxy.cjs`) and `vsc-mcpserver.vsix` into `../my-claude-marketplace/plugins/vsc-mcp/`.
-10. Report the merged upstream commits, resolved conflicts, test results, and the new extension version. Do not run `git commit` or `git push` unless the user asks.
+8. List new upstream tools: compare tool names in `src/tools/` with `git diff HEAD --name-only` additions, or `git diff HEAD -- src/tools/`. Ask the user whether to add each new tool to `PROXY_TOOL_ALLOWLIST` in `src/proxy.ts`. Add only the approved tools.
+9. Run `npm install && npm run build && npm run lint && npm test`. Fix any failures.
+10. Run `npm run sync:plugin` to bump the patch version, install the updated VSIX into VS Code, and copy `dist/proxy.js` (as `dist/proxy.cjs`) and `vsc-mcpserver.vsix` into `../my-claude-marketplace/plugins/vsc-mcp/`.
+11. Report the merged upstream commits, resolved conflicts, test results, and the new extension version. Do not run `git commit` or `git push` unless the user asks.

@@ -24,7 +24,7 @@ A Visual Studio Code extension that exposes an MCP (Model Context Protocol) serv
 ## ✨ Features
 
 - 🧠 **Full Language Intelligence** - Access VS Code's language server features via MCP tools
-- 🪟 **Multi-Window & Workspace Routing** - Each VS Code window auto-assigns a free port on `EADDRINUSE` and registers in `~/.vsc-mcp/windows/<pid>.json`; the `dist/proxy.js` router forwards requests to the matching window (supports single folders and `.code-workspace`)
+- 🪟 **Multi-Window & Workspace Routing** - Each VS Code window auto-assigns a free port on `EADDRINUSE` and registers in `~/.vsc-mcp/windows/<pid>.json`; the `dist/proxy.js` router forwards requests to the matching window (supports single folders and `.code-workspace`). The proxy exposes only the tools in its `PROXY_TOOL_ALLOWLIST` constant (`src/proxy.ts`); other tools are hidden from `tools/list` and rejected in `tools/call`
 - 🔗 **URI Protocol Handler** - Launch VS Code via `vscode://codingwithcalvin.mcp/...`
 - ⚡ **Auto-start & Auto-register** - Starts automatically on VS Code launch, pairs with the `vsc-mcp` Claude plugin, and auto-configures Antigravity (`~/.gemini/antigravity/mcp_config.json`)
 - 🔒 **Secure by Default** - Binds only to `127.0.0.1` with Host header validation

@@ -52,6 +52,23 @@ const VSCODE_LIST_WINDOWS_TOOL: ToolDefinition = {
     },
 };
 
+export const PROXY_TOOL_ALLOWLIST: ReadonlySet<string> = new Set([
+    'vscode_list_windows',
+    'search_workspace_text',
+    'search_workspace_files',
+    'find_references',
+    'workspace_symbols',
+    'go_to_definition',
+    'hover_info',
+    'diagnostics',
+    'document_symbols',
+    'rename_symbol',
+    'organize_imports',
+    'call_hierarchy',
+    'get_code_actions',
+    'apply_code_action',
+]);
+
 const jsonText = (data: unknown) => ({
     content: [{ type: 'text', text: typeof data === 'string' ? data : JSON.stringify(data) }],
 });
@@ -279,8 +296,9 @@ export const handleProxyRpc = async (
                     id: 'proxy-tools',
                     method: 'tools/list',
                 });
-                const upstreamTools = ((res.result as { tools?: ToolDefinition[] } | undefined)?.tools ?? []).map(
-                    (t) => ({
+                const upstreamTools = ((res.result as { tools?: ToolDefinition[] } | undefined)?.tools ?? [])
+                    .filter((t) => PROXY_TOOL_ALLOWLIST.has(t.name))
+                    .map((t) => ({
                         ...t,
                         inputSchema: {
                             ...t.inputSchema,
@@ -309,6 +327,10 @@ export const handleProxyRpc = async (
                     : {};
             if (!name) {
                 return rpcError(id, -32602, 'Missing tool name');
+            }
+
+            if (!PROXY_TOOL_ALLOWLIST.has(name)) {
+                return { jsonrpc: '2.0', id, result: errorText(`Tool ${name} is disabled in vsc-mcp proxy`) };
             }
 
             const windows = readLiveWindows(ctx.windowsDir);
