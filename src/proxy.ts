@@ -54,8 +54,6 @@ const VSCODE_LIST_WINDOWS_TOOL: ToolDefinition = {
 
 export const PROXY_TOOL_ALLOWLIST: ReadonlySet<string> = new Set([
     'vscode_list_windows',
-    'search_workspace_text',
-    'search_workspace_files',
     'find_references',
     'workspace_symbols',
     'go_to_definition',
